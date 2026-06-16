@@ -50,9 +50,15 @@ export async function runSync(): Promise<SyncResult> {
   const errors: string[] = [];
   let synced = 0;
 
+  console.log("[sync] 노션 포트폴리오 페이지 조회 시작...");
   const pages = await fetchPortfolioPages();
+  console.log(`[sync] 총 ${pages.length}개 현장 발견. 동기화 시작.`);
 
+  let idx = 0;
   for (const page of pages) {
+    idx++;
+    const label = page.siteName || page.notionId;
+    console.log(`[sync] (${idx}/${pages.length}) "${label}" 처리 중...`);
     try {
       const { data: project, error: upsertError } = await supabase
         .from("portfolio_projects")
@@ -85,8 +91,11 @@ export async function runSync(): Promise<SyncResult> {
         if (matError) throw new Error(`자재 저장 실패: ${matError.message}`);
       }
 
+      console.log(`[sync]   자재 ${materialRows.length}건 처리. 이미지 조회 중...`);
       const imageUrls = await extractImageUrls(page.notionId);
+      console.log(`[sync]   이미지 ${imageUrls.length}장 발견. Storage 업로드 중...`);
       const publicUrls = await saveImagesToStorage(page.notionId, imageUrls);
+      console.log(`[sync]   이미지 ${publicUrls.length}장 업로드 완료.`);
 
       await supabase.from("portfolio_photos").delete().eq("project_id", projectId);
       if (publicUrls.length > 0) {
@@ -103,9 +112,11 @@ export async function runSync(): Promise<SyncResult> {
 
       synced++;
     } catch (e: any) {
-      errors.push(`${page.siteName || page.notionId}: ${e?.message ?? String(e)}`);
+      console.error(`[sync]   ✗ "${label}" 실패: ${e?.message ?? String(e)}`);
+      errors.push(`${label}: ${e?.message ?? String(e)}`);
     }
   }
 
+  console.log(`[sync] 완료. 성공 ${synced}건, 오류 ${errors.length}건.`);
   return { synced, errors };
 }
