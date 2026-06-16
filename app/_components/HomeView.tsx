@@ -71,7 +71,9 @@ export default function HomeView({
         </div>
       )}
 
-      <SyncButton />
+      <SyncButton onProjectsUpdate={(updated) => {
+        if (!query.trim()) setProjects(updated);
+      }} />
     </main>
   );
 }
