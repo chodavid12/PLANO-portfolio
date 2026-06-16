@@ -15,16 +15,28 @@ async function saveImagesToStorage(
   const publicUrls: string[] = [];
 
   for (let i = 0; i < imageUrls.length; i++) {
-    const res = await fetch(imageUrls[i]);
-    if (!res.ok) continue;
-    const buffer = await res.arrayBuffer();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    let buffer: ArrayBuffer;
+    try {
+      const res = await fetch(imageUrls[i], { signal: controller.signal });
+      if (!res.ok) continue;
+      buffer = await res.arrayBuffer();
+    } catch {
+      continue;
+    } finally {
+      clearTimeout(timeoutId);
+    }
     const path = `${folder}/${i}.jpg`;
 
     const { error } = await supabase.storage
       .from(STORAGE_BUCKET)
       .upload(path, buffer, { upsert: true, contentType: "image/jpeg" });
 
-    if (error) throw new Error(`이미지 업로드 실패 (${path}): ${error.message}`);
+    if (error) {
+      console.warn(`이미지 업로드 실패 (${path}): ${error.message}`);
+      continue;
+    }
 
     const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
     publicUrls.push(data.publicUrl);
