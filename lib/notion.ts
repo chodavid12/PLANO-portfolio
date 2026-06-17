@@ -6,8 +6,10 @@ const notion = new Client({ auth: process.env.NOTION_TOKEN });
 export interface NotionProject {
   notionId: string;
   siteName: string;
-  materialRelations: Record<string, string[]>;
+  customerPageIds: string[];
 }
+
+const CUSTOMER_RELATION_PROPERTY = "고객정보 DB";
 
 export async function fetchPortfolioPages(): Promise<NotionProject[]> {
   const dbId = process.env.NOTION_PORTFOLIO_DB_ID;
@@ -33,22 +35,17 @@ export async function fetchPortfolioPages(): Promise<NotionProject[]> {
       const siteName =
         titleProp?.title?.map((t: any) => t.plain_text).join("") ?? "";
 
-      const materialRelations: Record<string, string[]> = {};
-      for (const category of MATERIAL_CATEGORIES) {
-        const relProp = props[category];
-        if (relProp?.type === "relation" && Array.isArray(relProp.relation)) {
-          materialRelations[category] = relProp.relation.map(
-            (r: any) => r.id as string
-          );
-        } else {
-          materialRelations[category] = [];
-        }
-      }
+      const customerRelProp = props[CUSTOMER_RELATION_PROPERTY];
+      const customerPageIds: string[] =
+        customerRelProp?.type === "relation" &&
+        Array.isArray(customerRelProp.relation)
+          ? customerRelProp.relation.map((r: any) => r.id as string)
+          : [];
 
       projects.push({
         notionId: p.id,
         siteName,
-        materialRelations,
+        customerPageIds,
       });
     }
 
@@ -56,6 +53,36 @@ export async function fetchPortfolioPages(): Promise<NotionProject[]> {
   } while (cursor);
 
   return projects;
+}
+
+// 포트폴리오 DB의 가구재/도배/마루/타일/필름은 롤업이라 실제 값이 없다.
+// 진짜 relation은 "고객정보 DB"로 연결된 프로젝트 DB 페이지에 있으므로 거기서 가져온다.
+export async function resolveMaterialRelations(
+  customerPageIds: string[]
+): Promise<Record<string, string[]>> {
+  const result: Record<string, string[]> = {};
+  for (const category of MATERIAL_CATEGORIES) result[category] = [];
+
+  for (const customerId of customerPageIds) {
+    try {
+      const page = await notion.pages.retrieve({ page_id: customerId });
+      const props = (page as any).properties ?? {};
+      for (const category of MATERIAL_CATEGORIES) {
+        const relProp = props[category];
+        if (relProp?.type === "relation" && Array.isArray(relProp.relation)) {
+          result[category].push(
+            ...relProp.relation.map((r: any) => r.id as string)
+          );
+        }
+      }
+    } catch (e: any) {
+      console.error(
+        `[notion] 고객정보 페이지 조회 실패 (${customerId}): ${e?.message ?? e}`
+      );
+    }
+  }
+
+  return result;
 }
 
 export async function resolveRelationNames(

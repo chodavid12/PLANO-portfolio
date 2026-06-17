@@ -1,6 +1,7 @@
 import {
   extractImageUrls,
   fetchPortfolioPages,
+  resolveMaterialRelations,
   resolveRelationNames,
 } from "./notion";
 import { getSupabaseAdmin, STORAGE_BUCKET } from "./supabase";
@@ -75,8 +76,9 @@ export async function runSync(): Promise<SyncResult> {
       const projectId = project.id as string;
 
       const materialRows: { project_id: string; category: string; material_name: string }[] = [];
+      const materialRelations = await resolveMaterialRelations(page.customerPageIds);
       for (const category of MATERIAL_CATEGORIES) {
-        const pageIds = page.materialRelations[category] ?? [];
+        const pageIds = materialRelations[category] ?? [];
         const names = await resolveRelationNames(pageIds);
         console.log(`[sync]   ${category}: relation ${pageIds.length}건 → 이름 ${names.length}건 확인`);
         for (const name of names) {
