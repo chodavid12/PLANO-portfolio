@@ -78,6 +78,7 @@ export async function runSync(): Promise<SyncResult> {
       for (const category of MATERIAL_CATEGORIES) {
         const pageIds = page.materialRelations[category] ?? [];
         const names = await resolveRelationNames(pageIds);
+        console.log(`[sync]   ${category}: relation ${pageIds.length}건 → 이름 ${names.length}건 확인`);
         for (const name of names) {
           materialRows.push({ project_id: projectId, category, material_name: name });
         }

@@ -73,7 +73,8 @@ export async function resolveRelationNames(
         return (
           titleProp?.title?.map((t: any) => t.plain_text).join("") ?? ""
         );
-      } catch {
+      } catch (e: any) {
+        console.error(`[notion] relation page 조회 실패 (${id}): ${e?.message ?? e}`);
         return "";
       }
     })
