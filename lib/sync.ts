@@ -94,23 +94,31 @@ export async function runSync(): Promise<SyncResult> {
         if (matError) throw new Error(`자재 저장 실패: ${matError.message}`);
       }
 
-      console.log(`[sync]   자재 ${materialRows.length}건 처리. 이미지 조회 중...`);
-      const imageUrls = await extractImageUrls(page.notionId);
-      console.log(`[sync]   이미지 ${imageUrls.length}장 발견. Storage 업로드 중...`);
-      const publicUrls = await saveImagesToStorage(page.notionId, imageUrls);
-      console.log(`[sync]   이미지 ${publicUrls.length}장 업로드 완료.`);
+      const { count: existingPhotoCount } = await supabase
+        .from("portfolio_photos")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", projectId);
 
-      await supabase.from("portfolio_photos").delete().eq("project_id", projectId);
-      if (publicUrls.length > 0) {
-        const photoRows = publicUrls.map((url, idx) => ({
-          project_id: projectId,
-          url,
-          display_order: idx,
-        }));
-        const { error: photoError } = await supabase
-          .from("portfolio_photos")
-          .insert(photoRows);
-        if (photoError) throw new Error(`사진 저장 실패: ${photoError.message}`);
+      if ((existingPhotoCount ?? 0) > 0) {
+        console.log(`[sync]   자재 ${materialRows.length}건 처리. 기존 사진 ${existingPhotoCount}장 있음 → 이미지 단계 건너뜀.`);
+      } else {
+        console.log(`[sync]   자재 ${materialRows.length}건 처리. 이미지 조회 중...`);
+        const imageUrls = await extractImageUrls(page.notionId);
+        console.log(`[sync]   이미지 ${imageUrls.length}장 발견. Storage 업로드 중...`);
+        const publicUrls = await saveImagesToStorage(page.notionId, imageUrls);
+        console.log(`[sync]   이미지 ${publicUrls.length}장 업로드 완료.`);
+
+        if (publicUrls.length > 0) {
+          const photoRows = publicUrls.map((url, idx) => ({
+            project_id: projectId,
+            url,
+            display_order: idx,
+          }));
+          const { error: photoError } = await supabase
+            .from("portfolio_photos")
+            .insert(photoRows);
+          if (photoError) throw new Error(`사진 저장 실패: ${photoError.message}`);
+        }
       }
 
       synced++;
