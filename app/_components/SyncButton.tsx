@@ -49,9 +49,9 @@ export default function SyncButton({ onProjectsUpdate }: Props) {
       if (!res.ok) {
         showToast(`동기화 실패: ${data.errors?.[0] ?? "오류"}`);
       } else {
+        const skipPart = data.skipped ? ` (건너뜀 ${data.skipped})` : "";
         const errPart = data.errors?.length > 0 ? ` (오류 ${data.errors.length}건)` : "";
-        showToast(`${data.synced}건 동기화 완료${errPart}`);
-        // 최종 결과 한 번 더 반영
+        showToast(`${data.synced}건 동기화 완료${skipPart}${errPart}`);
         const final = await fetch("/api/projects");
         const finalData = await final.json();
         onProjectsUpdate?.(finalData.projects ?? []);

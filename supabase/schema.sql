@@ -8,7 +8,8 @@ create table if not exists portfolio_projects (
   id uuid primary key default gen_random_uuid(),
   notion_id text unique not null,
   site_name text not null,
-  synced_at timestamptz default now()
+  synced_at timestamptz default now(),
+  notion_last_edited_at timestamptz
 );
 
 create table if not exists portfolio_materials (
@@ -41,6 +42,14 @@ create index if not exists idx_projects_trgm
   on portfolio_projects using gin (site_name gin_trgm_ops);
 create index if not exists idx_materials_trgm
   on portfolio_materials using gin (material_name gin_trgm_ops);
+
+-- 자주 쓰는 액세스 패턴용 인덱스
+create index if not exists idx_projects_synced_at
+  on portfolio_projects (synced_at desc);
+create index if not exists idx_materials_project
+  on portfolio_materials (project_id);
+create index if not exists idx_photos_project
+  on portfolio_photos (project_id, display_order);
 
 insert into storage.buckets (id, name, public)
 values ('portfolio-images', 'portfolio-images', true)

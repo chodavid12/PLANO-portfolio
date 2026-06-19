@@ -29,5 +29,6 @@ export interface Project {
 
 export interface SyncResult {
   synced: number;
+  skipped?: number;
   errors: string[];
 }

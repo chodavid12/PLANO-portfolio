@@ -1,5 +1,5 @@
 import { Client } from "@notionhq/client";
-import { MATERIAL_CATEGORIES } from "./types";
+import { MATERIAL_CATEGORIES, type MaterialCategory } from "./types";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
@@ -7,6 +7,7 @@ export interface NotionProject {
   notionId: string;
   siteName: string;
   customerPageIds: string[];
+  lastEditedTime: string;
 }
 
 const CUSTOMER_RELATION_PROPERTY = "고객정보 DB";
@@ -46,6 +47,7 @@ export async function fetchPortfolioPages(): Promise<NotionProject[]> {
         notionId: p.id,
         siteName,
         customerPageIds,
+        lastEditedTime: p.last_edited_time ?? "",
       });
     }
 
@@ -56,29 +58,31 @@ export async function fetchPortfolioPages(): Promise<NotionProject[]> {
 }
 
 // 포트폴리오 DB의 가구재/도배/마루/타일/필름은 롤업이라 실제 값이 없다.
-// 진짜 relation은 "고객정보 DB"로 연결된 프로젝트 DB 페이지에 있으므로 거기서 가져온다.
+// 진짜 relation은 "고객정보 DB"로 연결된 프로젝트 DB 페이지에 있다.
 export async function resolveMaterialRelations(
   customerPageIds: string[]
-): Promise<Record<string, string[]>> {
-  const result: Record<string, string[]> = {};
-  for (const category of MATERIAL_CATEGORIES) result[category] = [];
+): Promise<Record<MaterialCategory, string[]>> {
+  const result = Object.fromEntries(
+    MATERIAL_CATEGORIES.map((c) => [c, [] as string[]])
+  ) as Record<MaterialCategory, string[]>;
 
-  for (const customerId of customerPageIds) {
-    try {
-      const page = await notion.pages.retrieve({ page_id: customerId });
-      const props = (page as any).properties ?? {};
-      for (const category of MATERIAL_CATEGORIES) {
-        const relProp = props[category];
-        if (relProp?.type === "relation" && Array.isArray(relProp.relation)) {
-          result[category].push(
-            ...relProp.relation.map((r: any) => r.id as string)
-          );
-        }
+  const pages = await Promise.all(
+    customerPageIds.map((id) =>
+      notion.pages.retrieve({ page_id: id }).catch((e: any) => {
+        console.error(`[notion] 고객정보 페이지 조회 실패 (${id}): ${e?.message ?? e}`);
+        return null;
+      })
+    )
+  );
+
+  for (const page of pages) {
+    if (!page) continue;
+    const props = (page as any).properties ?? {};
+    for (const category of MATERIAL_CATEGORIES) {
+      const relProp = props[category];
+      if (relProp?.type === "relation" && Array.isArray(relProp.relation)) {
+        result[category].push(...relProp.relation.map((r: any) => r.id as string));
       }
-    } catch (e: any) {
-      console.error(
-        `[notion] 고객정보 페이지 조회 실패 (${customerId}): ${e?.message ?? e}`
-      );
     }
   }
 
@@ -91,20 +95,19 @@ export async function resolveRelationNames(
   if (pageIds.length === 0) return [];
 
   const names = await Promise.all(
-    pageIds.map(async (id) => {
-      try {
-        const page = await notion.pages.retrieve({ page_id: id });
-        const titleProp = Object.values((page as any).properties).find(
-          (prop: any) => prop?.type === "title"
-        ) as any;
-        return (
-          titleProp?.title?.map((t: any) => t.plain_text).join("") ?? ""
-        );
-      } catch (e: any) {
-        console.error(`[notion] relation page 조회 실패 (${id}): ${e?.message ?? e}`);
-        return "";
-      }
-    })
+    pageIds.map((id) =>
+      notion.pages.retrieve({ page_id: id })
+        .then((page) => {
+          const titleProp = Object.values((page as any).properties).find(
+            (prop: any) => prop?.type === "title"
+          ) as any;
+          return titleProp?.title?.map((t: any) => t.plain_text).join("") ?? "";
+        })
+        .catch((e: any) => {
+          console.error(`[notion] relation page 조회 실패 (${id}): ${e?.message ?? e}`);
+          return "";
+        })
+    )
   );
 
   return names.filter(Boolean);

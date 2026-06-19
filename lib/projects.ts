@@ -45,18 +45,25 @@ export async function getProjectById(id: string): Promise<Project | null> {
   return data ? normalize(data) : null;
 }
 
+// LIKE 패턴에서 사용자 입력의 %, _, \ 이스케이프
+function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 export async function searchProjects(query: string): Promise<Project[]> {
   const q = query.trim();
   if (!q) return getAllProjects();
 
   const supabase = getSupabaseAdmin();
-  const { data: matches, error: viewError } = await supabase
+  const pattern = `%${escapeLike(q)}%`;
+
+  // 자재명 OR 현장명 매칭 — search_text 뷰가 두 가지 모두 포함하므로 1쿼리
+  const { data: matches, error: matchError } = await supabase
     .from("portfolio_search_view")
     .select("id")
-    .ilike("search_text", `%${q}%`)
+    .ilike("search_text", pattern)
     .limit(50);
-
-  if (viewError) throw new Error(viewError.message);
+  if (matchError) throw new Error(matchError.message);
 
   const ids = (matches ?? []).map((m: any) => m.id);
   if (ids.length === 0) return [];
