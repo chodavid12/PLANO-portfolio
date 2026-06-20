@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "플라노 포트폴리오",
+  title: "PLANO DESIGN PORTFOLIO",
   description: "플라노디자인 내부 포트폴리오 검색",
 };
 

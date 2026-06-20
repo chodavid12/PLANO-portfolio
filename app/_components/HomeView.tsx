@@ -51,7 +51,7 @@ export default function HomeView({
   return (
     <main className="mx-auto max-w-6xl px-4 pb-24 pt-6">
       <header className="mb-5">
-        <h1 className="mb-3 text-xl font-bold text-ink">플라노 포트폴리오</h1>
+        <h1 className="mb-3 text-xl font-bold text-ink">PLANO DESIGN PORTFOLIO</h1>
         <div className="sticky top-3 z-30">
           <SearchBar value={query} onChange={setQuery} />
         </div>
